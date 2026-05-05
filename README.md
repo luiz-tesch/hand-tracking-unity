@@ -1,61 +1,58 @@
 # Hand Tracking Unity
 
-Projeto de portfólio para o mestrado em Computação Gráfica — UFRGS.
+Real-time hand tracking with **MediaPipe** (Python) integrated into **Unity 6.1** via UDP socket.
 
-Rastreamento de mãos em tempo real com **MediaPipe** (Python) integrado ao **Unity 6.1** via socket UDP.
-
-## Como funciona
+## How it works
 
 ```
-Webcam → Python (MediaPipe) → UDP 5052 → Unity → 21 esferas animadas
+Webcam → Python (MediaPipe) → UDP 5052 → Unity → 21 animated spheres
 ```
 
-O script Python captura a webcam, detecta os 21 landmarks da mão com MediaPipe e envia as coordenadas como JSON via UDP. O Unity recebe esses dados e move 21 esferas na cena em tempo real.
+The Python script captures the webcam, detects the 21 hand landmarks using MediaPipe, and streams the coordinates as JSON over UDP. Unity receives the data and moves 21 spheres in the scene in real time.
 
-## Tecnologias
+## Tech stack
 
 - **Unity 6.1** (6000.1.13f1)
 - **Python 3** + MediaPipe + OpenCV
-- Comunicação via **UDP socket** (porta 5052)
+- **UDP socket** on port 5052
 
-## Requisitos
+## Requirements
 
 - Python 3.10+
 - Webcam
 - Unity 6.1
 
-## Setup Python
+## Python setup
 
 ```bash
-# Na raiz do projeto
 python -m venv venv
 venv\Scripts\activate
 pip install mediapipe opencv-python
 ```
 
-Na primeira execução, o modelo `hand_landmarker.task` (~29 MB) é baixado automaticamente.
+The `hand_landmarker.task` model (~29 MB) is downloaded automatically on the first run.
 
-## Como rodar
+## Running
 
-1. Abra o projeto no Unity e clique em **Play**
-2. Em outro terminal, na raiz do projeto:
+1. Open the project in Unity and press **Play**
+2. In a separate terminal, from the project root:
 
 ```bash
 venv\Scripts\activate
 python hand_tracker.py
 ```
 
-3. Aponte a mão para a webcam — as 21 esferas se movem na cena Unity
+3. Point your hand at the webcam — the 21 spheres move in the Unity scene
 
-Pressione `q` para encerrar o script Python.
+Press `q` to quit the Python script.
 
-## Estrutura
+## Structure
 
 ```
 hand-tracking-unity/
 ├── Assets/
-│   ├── HandReceiver.cs   # Script C# que recebe os dados UDP no Unity
+│   ├── HandReceiver.cs   # C# script that receives UDP data in Unity
 │   └── Scenes/
-├── hand_tracker.py       # Script Python de rastreamento
-└── venv/                 # Ambiente virtual Python (não versionado)
+├── hand_tracker.py       # Python hand tracking script
+└── venv/                 # Python virtual environment (not versioned)
 ```
