@@ -1,0 +1,22 @@
+# Visual Studio
+.vs/
+
+# Unity
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+*.csproj
+*.sln
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# MediaPipe model (large binary, ~29MB)
+hand_landmarker.task
