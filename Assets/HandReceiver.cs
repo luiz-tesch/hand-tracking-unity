@@ -48,6 +48,10 @@ public class HandReceiver : MonoBehaviour
     private GameObject grabbed = null;
     private readonly float grabRadius = 1.2f;
 
+    // Rotation tracking
+    private Quaternion grabStartHandRot;
+    private Quaternion grabStartObjRot;
+
     // Gesture state
     private string currentGesture = "open";
 
@@ -188,6 +192,24 @@ public class HandReceiver : MonoBehaviour
         HandleGrab();
     }
 
+    // Builds a rotation from the palm plane using wrist, middle MCP and index MCP.
+    // palmUp = wrist→middleMCP, palmNormal = perpendicular to the palm surface.
+    Quaternion GetHandRotation()
+    {
+        Vector3 wrist     = landmarkSpheres[0].transform.position;
+        Vector3 middleMCP = landmarkSpheres[9].transform.position;
+        Vector3 indexMCP  = landmarkSpheres[5].transform.position;
+
+        Vector3 palmUp     = (middleMCP - wrist).normalized;
+        Vector3 palmSide   = (indexMCP  - wrist).normalized;
+        Vector3 palmNormal = Vector3.Cross(palmUp, palmSide).normalized;
+
+        if (palmNormal.sqrMagnitude < 0.001f || palmUp.sqrMagnitude < 0.001f)
+            return Quaternion.identity;
+
+        return Quaternion.LookRotation(palmNormal, palmUp);
+    }
+
     void HandleGrab()
     {
         Vector3 indexTip = landmarkSpheres[8].transform.position;
@@ -206,16 +228,31 @@ public class HandReceiver : MonoBehaviour
                         grabbed = obj;
                     }
                 }
+
                 if (grabbed != null)
+                {
                     grabbed.GetComponent<Renderer>().material.color = Color.white;
+                    // Snapshot hand and object rotations at grab moment
+                    grabStartHandRot = GetHandRotation();
+                    grabStartObjRot  = grabbed.transform.rotation;
+                }
             }
 
             if (grabbed != null)
             {
+                // Move toward index tip
                 grabbed.transform.position = Vector3.Lerp(
                     grabbed.transform.position,
                     indexTip,
                     Time.deltaTime * 12f
+                );
+
+                // Rotate by the delta since grab started
+                Quaternion handDelta = GetHandRotation() * Quaternion.Inverse(grabStartHandRot);
+                grabbed.transform.rotation = Quaternion.Slerp(
+                    grabbed.transform.rotation,
+                    handDelta * grabStartObjRot,
+                    Time.deltaTime * 10f
                 );
             }
         }
