@@ -10,7 +10,11 @@ using UnityEngine.Rendering;
 public class Landmark { public float x, y, z; }
 
 [System.Serializable]
-public class HandData { public Landmark[] landmarks; }
+public class HandData
+{
+    public Landmark[] landmarks;
+    public string gesture;
+}
 
 public class HandReceiver : MonoBehaviour
 {
@@ -37,11 +41,21 @@ public class HandReceiver : MonoBehaviour
 
     private LineRenderer[] lines;
 
+    // Interactable objects
+    private GameObject[] interactables;
+    private Color[] interactableColors;
+    private GameObject grabbed = null;
+    private readonly float grabRadius = 1.2f;
+
+    // Gesture state (updated inside lock, read outside)
+    private string currentGesture = "open";
+
     void Start()
     {
         Camera.main.clearFlags = CameraClearFlags.SolidColor;
         Camera.main.backgroundColor = Color.black;
 
+        // Create connection lines
         int lineCount = connections.GetLength(0);
         lines = new LineRenderer[lineCount];
         for (int i = 0; i < lineCount; i++)
@@ -60,6 +74,25 @@ public class HandReceiver : MonoBehaviour
             lr.useWorldSpace = true;
             lr.enabled = false;
             lines[i] = lr;
+        }
+
+        // Create 3 interactable cubes
+        interactableColors = new Color[] { Color.red, Color.cyan, Color.yellow };
+        Vector3[] positions = {
+            new Vector3(-3f,  0f, 0f),
+            new Vector3( 0f,  2f, 0f),
+            new Vector3( 3f, -1f, 0f)
+        };
+
+        interactables = new GameObject[3];
+        for (int i = 0; i < 3; i++)
+        {
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.name = $"Interactable_{i}";
+            cube.transform.position = positions[i];
+            cube.transform.localScale = Vector3.one * 0.8f;
+            cube.GetComponent<Renderer>().material.color = interactableColors[i];
+            interactables[i] = cube;
         }
 
         udpClient = new UdpClient(5052);
@@ -88,27 +121,79 @@ public class HandReceiver : MonoBehaviour
     {
         lock (dataLock)
         {
-            if (!newDataAvailable || latestData == null) return;
-            newDataAvailable = false;
-
-            for (int i = 0; i < latestData.landmarks.Length && i < landmarkSpheres.Length; i++)
+            if (newDataAvailable && latestData != null)
             {
-                var lm = latestData.landmarks[i];
-                landmarkSpheres[i].transform.localPosition = new Vector3(
-                    lm.x * scaleX - scaleX / 2,
-                    lm.y * scaleY + scaleY / -2,
-                    lm.z * scaleZ
-                );
+                newDataAvailable = false;
+
+                for (int i = 0; i < latestData.landmarks.Length && i < landmarkSpheres.Length; i++)
+                {
+                    var lm = latestData.landmarks[i];
+                    landmarkSpheres[i].transform.localPosition = new Vector3(
+                        lm.x * scaleX - scaleX / 2,
+                        lm.y * scaleY + scaleY / -2,
+                        lm.z * scaleZ
+                    );
+                }
+
+                int lineCount = connections.GetLength(0);
+                for (int i = 0; i < lineCount; i++)
+                {
+                    int a = connections[i, 0];
+                    int b = connections[i, 1];
+                    lines[i].SetPosition(0, landmarkSpheres[a].transform.position);
+                    lines[i].SetPosition(1, landmarkSpheres[b].transform.position);
+                    lines[i].enabled = true;
+                }
+
+                currentGesture = latestData.gesture ?? "open";
+            }
+        }
+
+        HandleGrab();
+    }
+
+    void HandleGrab()
+    {
+        Vector3 indexTip = landmarkSpheres[8].transform.position;
+
+        if (currentGesture == "pinch")
+        {
+            // Try to grab the closest object within reach
+            if (grabbed == null)
+            {
+                float minDist = grabRadius;
+                foreach (var obj in interactables)
+                {
+                    float d = Vector3.Distance(indexTip, obj.transform.position);
+                    if (d < minDist)
+                    {
+                        minDist = d;
+                        grabbed = obj;
+                    }
+                }
+                // Highlight grabbed object
+                if (grabbed != null)
+                    grabbed.GetComponent<Renderer>().material.color = Color.white;
             }
 
-            int lineCount = connections.GetLength(0);
-            for (int i = 0; i < lineCount; i++)
+            // Move grabbed object toward index tip every frame (smooth)
+            if (grabbed != null)
             {
-                int a = connections[i, 0];
-                int b = connections[i, 1];
-                lines[i].SetPosition(0, landmarkSpheres[a].transform.position);
-                lines[i].SetPosition(1, landmarkSpheres[b].transform.position);
-                lines[i].enabled = true;
+                grabbed.transform.position = Vector3.Lerp(
+                    grabbed.transform.position,
+                    indexTip,
+                    Time.deltaTime * 12f
+                );
+            }
+        }
+        else
+        {
+            // Release: restore original color
+            if (grabbed != null)
+            {
+                int idx = Array.IndexOf(interactables, grabbed);
+                grabbed.GetComponent<Renderer>().material.color = interactableColors[idx];
+                grabbed = null;
             }
         }
     }
