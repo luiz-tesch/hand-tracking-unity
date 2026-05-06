@@ -2,6 +2,8 @@
 
 Real-time hand tracking with **MediaPipe** (Python) integrated into **Unity 6.1** via UDP socket.
 
+![Demo](docs/hand-detect.gif)
+
 ## How it works
 
 ```
