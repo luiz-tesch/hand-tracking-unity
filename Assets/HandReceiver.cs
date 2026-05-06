@@ -28,6 +28,7 @@ public class HandReceiver : MonoBehaviour
     public float scaleX = 10f;
     public float scaleY = -8f;
     public float scaleZ = 5f;
+    public bool mirrorX = true;
 
     private static readonly int[,] connections = new int[,]
     {
@@ -47,7 +48,7 @@ public class HandReceiver : MonoBehaviour
     private GameObject grabbed = null;
     private readonly float grabRadius = 1.2f;
 
-    // Gesture state (updated inside lock, read outside)
+    // Gesture state
     private string currentGesture = "open";
 
     void Start()
@@ -55,7 +56,18 @@ public class HandReceiver : MonoBehaviour
         Camera.main.clearFlags = CameraClearFlags.SolidColor;
         Camera.main.backgroundColor = Color.black;
 
-        // Create connection lines
+        CreateConnectionLines();
+        CreateBoundaryFrame();
+        CreateInteractables();
+
+        udpClient = new UdpClient(5052);
+        receiveThread = new Thread(ReceiveData);
+        receiveThread.IsBackground = true;
+        receiveThread.Start();
+    }
+
+    void CreateConnectionLines()
+    {
         int lineCount = connections.GetLength(0);
         lines = new LineRenderer[lineCount];
         for (int i = 0; i < lineCount; i++)
@@ -75,8 +87,36 @@ public class HandReceiver : MonoBehaviour
             lr.enabled = false;
             lines[i] = lr;
         }
+    }
 
-        // Create 3 interactable cubes
+    void CreateBoundaryFrame()
+    {
+        float xMin = -scaleX / 2f;
+        float xMax =  scaleX / 2f;
+        float yTop =  scaleY / -2f;
+        float yBot =  scaleY + scaleY / -2f;
+
+        GameObject frame = new GameObject("BoundaryFrame");
+        frame.transform.SetParent(transform);
+        LineRenderer lr = frame.AddComponent<LineRenderer>();
+        lr.positionCount = 5;
+        lr.startWidth = 0.06f;
+        lr.endWidth = 0.06f;
+        lr.material = new Material(Shader.Find("Sprites/Default"));
+        lr.startColor = new Color(1f, 1f, 1f, 0.25f);
+        lr.endColor   = new Color(1f, 1f, 1f, 0.25f);
+        lr.shadowCastingMode = ShadowCastingMode.Off;
+        lr.receiveShadows = false;
+        lr.useWorldSpace = true;
+        lr.SetPosition(0, new Vector3(xMin, yTop, 0));
+        lr.SetPosition(1, new Vector3(xMax, yTop, 0));
+        lr.SetPosition(2, new Vector3(xMax, yBot, 0));
+        lr.SetPosition(3, new Vector3(xMin, yBot, 0));
+        lr.SetPosition(4, new Vector3(xMin, yTop, 0));
+    }
+
+    void CreateInteractables()
+    {
         interactableColors = new Color[] { Color.red, Color.cyan, Color.yellow };
         Vector3[] positions = {
             new Vector3(-3f,  0f, 0f),
@@ -94,11 +134,6 @@ public class HandReceiver : MonoBehaviour
             cube.GetComponent<Renderer>().material.color = interactableColors[i];
             interactables[i] = cube;
         }
-
-        udpClient = new UdpClient(5052);
-        receiveThread = new Thread(ReceiveData);
-        receiveThread.IsBackground = true;
-        receiveThread.Start();
     }
 
     void ReceiveData()
@@ -128,9 +163,10 @@ public class HandReceiver : MonoBehaviour
                 for (int i = 0; i < latestData.landmarks.Length && i < landmarkSpheres.Length; i++)
                 {
                     var lm = latestData.landmarks[i];
+                    float rawX = mirrorX ? 1f - lm.x : lm.x;
                     landmarkSpheres[i].transform.localPosition = new Vector3(
-                        lm.x * scaleX - scaleX / 2,
-                        lm.y * scaleY + scaleY / -2,
+                        rawX * scaleX - scaleX / 2f,
+                        lm.y * scaleY + scaleY / -2f,
                         lm.z * scaleZ
                     );
                 }
@@ -158,7 +194,6 @@ public class HandReceiver : MonoBehaviour
 
         if (currentGesture == "pinch")
         {
-            // Try to grab the closest object within reach
             if (grabbed == null)
             {
                 float minDist = grabRadius;
@@ -171,12 +206,10 @@ public class HandReceiver : MonoBehaviour
                         grabbed = obj;
                     }
                 }
-                // Highlight grabbed object
                 if (grabbed != null)
                     grabbed.GetComponent<Renderer>().material.color = Color.white;
             }
 
-            // Move grabbed object toward index tip every frame (smooth)
             if (grabbed != null)
             {
                 grabbed.transform.position = Vector3.Lerp(
@@ -188,7 +221,6 @@ public class HandReceiver : MonoBehaviour
         }
         else
         {
-            // Release: restore original color
             if (grabbed != null)
             {
                 int idx = Array.IndexOf(interactables, grabbed);
